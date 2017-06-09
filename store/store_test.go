@@ -3,6 +3,7 @@ package store
 import "io/ioutil"
 import "os"
 import "testing"
+import "github.com/stretchr/testify/assert"
 
 func TestNewStore(t *testing.T) {
 	root, err := ioutil.TempDir("", "store")
@@ -28,7 +29,26 @@ func TestExist(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if store.Exist([]byte("a")) {
+	if store.Exist("a") {
 		t.Error("Expected key to not exist")
 	}
+}
+
+func TestSetInvalidKey(t *testing.T) {
+	root, err := ioutil.TempDir("", "store")
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.RemoveAll(root)
+
+	store, err := NewStore(root)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = store.Set("a", []byte("my value"))
+	assert.Error(t, err)
+
+	err = store.Set("aaaa", []byte("my value"))
+	assert.Error(t, err)
 }

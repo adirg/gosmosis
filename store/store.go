@@ -21,15 +21,40 @@ func NewStore(root string) (*Store, error) {
 	return store, nil
 }
 
-func (store *Store) Set(key []byte, val []byte) error {
+func (store *Store) Set(key string, val []byte) error {
+	keySize := len(key)
+	if keySize <= 2 {
+		return errors.New("Invalid key")
+	}
+
+	keySubdir = path.Join(store.root, key[:2])
+	subdirExists, _ := exists(keySubdir)
+	if !subdirExists {
+		err := os.Mkdir(keySubdir)
+		if err != nil {
+			return err
+		}
+	}
+
+	keyFullPath = os.Join(keySubdir, key[2:])
+	f, err := os.Create(keyFullPath)
+	if err != nil {
+		return err
+	}
+
+	n, err := f.Write(val)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (store *Store) Get(key []byte) ([]byte, error) {
+func (store *Store) Get(key string) ([]byte, error) {
 	return nil, nil
 }
 
-func (store *Store) Exist(key []byte) bool {
+func (store *Store) Exist(key string) bool {
 	keySize := len(key)
 	if keySize <= 2 {
 		return false
