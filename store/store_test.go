@@ -34,7 +34,7 @@ func TestExist(t *testing.T) {
 	}
 }
 
-func TestSetInvalidKey(t *testing.T) {
+func TestSet(t *testing.T) {
 	root, err := ioutil.TempDir("", "store")
 	if err != nil {
 		t.Error(err)
@@ -50,5 +50,23 @@ func TestSetInvalidKey(t *testing.T) {
 	assert.Error(t, err)
 
 	err = store.Set("aaaa", []byte("my value"))
+	assert.Nil(t, err)
+}
+
+func TestGet(t *testing.T) {
+	root, err := ioutil.TempDir("", "store")
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.RemoveAll(root)
+
+	store, err := NewStore(root)
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = store.Get("aa")
 	assert.Error(t, err)
+	store.Set("aaaa", []byte("my value"))
+	_, err = store.Get("aaaa")
+	assert.Nil(t, err)
 }

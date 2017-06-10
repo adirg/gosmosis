@@ -10,9 +10,7 @@ type Store struct {
 }
 
 func NewStore(root string) (*Store, error) {
-	fmt.Println("Checking if dir exists: ", root)
 	dirExists, _ := exists(root)
-	fmt.Println(dirExists)
 	if !dirExists {
 		return nil, errors.New("Root direcotry doesn't exists")
 	}
@@ -27,23 +25,25 @@ func (store *Store) Set(key string, val []byte) error {
 		return errors.New("Invalid key")
 	}
 
-	keySubdir = path.Join(store.root, key[:2])
+	keySubdir := path.Join(store.root, key[:2])
 	subdirExists, _ := exists(keySubdir)
 	if !subdirExists {
-		err := os.Mkdir(keySubdir)
+		err := os.Mkdir(keySubdir, os.ModePerm)
 		if err != nil {
 			return err
 		}
 	}
 
-	keyFullPath = os.Join(keySubdir, key[2:])
+	keyFullPath := path.Join(keySubdir, key[2:])
 	f, err := os.Create(keyFullPath)
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 
-	n, err := f.Write(val)
+	_, err = f.Write(val)
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 
@@ -51,7 +51,28 @@ func (store *Store) Set(key string, val []byte) error {
 }
 
 func (store *Store) Get(key string) ([]byte, error) {
-	return nil, nil
+	keySize := len(key)
+	if keySize <= 2 {
+		return nil, errors.New("Invalid key")
+	}
+
+	keySubdir := path.Join(store.root, key[:2])
+	keyFullPath := path.Join(keySubdir, key[2:])
+	keyFullPathExists, _ := exists(keyFullPath)
+	if !keyFullPathExists {
+		return nil, errors.New("Key doesn't exist")
+	}
+
+	f, err := os.Open(keyFullPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 1024)
+	f.Read(buf)
+
+	return buf, nil
 }
 
 func (store *Store) Exist(key string) bool {
