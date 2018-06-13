@@ -26,12 +26,13 @@ func handleCheckinCmd(args []string) {
 	port := checkinArgs.Uint("port", 3333, "connect to port")
 
 	checkinArgs.Parse(args)
-	if checkinArgs.NArg() == 0 {
-		log.Fatal("Missing directory to checkin")
+	if checkinArgs.NArg() < 2 {
+		log.Fatal("Missing directory / label")
 	}
 
 	dir := checkinArgs.Arg(0)
-	client.Checkin(*host, *port, dir)
+	label := checkinArgs.Arg(1)
+	client.Checkin(*host, *port, dir, label)
 }
 
 func main() {

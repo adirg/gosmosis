@@ -3,6 +3,7 @@ package client
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -10,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/adirg/gosmosis/server"
 )
 
 type Task struct {
@@ -18,7 +21,7 @@ type Task struct {
 	hash []byte
 }
 
-func Checkin(host string, port uint, dir string) {
+func Checkin(host string, port uint, dir string, label string) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		log.Fatal("Error determining absolute path of directory: ", err.Error())
@@ -39,7 +42,7 @@ func Checkin(host string, port uint, dir string) {
 	filesToManifest := make(chan Task)
 
 	wg.Add(1)
-	go manifest(filesToManifest, &wg)
+	go manifest(host, port, filesToManifest, label, &wg)
 
 	wg.Add(1)
 	go digest(filesToDigest, filesToUpload, filesToManifest, &wg)
@@ -48,12 +51,6 @@ func Checkin(host string, port uint, dir string) {
 	go upload(host, port, filesToUpload, &wg)
 
 	err = filepath.Walk(absDir, func(path string, info os.FileInfo, err error) error {
-		mode := info.Mode()
-		if mode.IsDir() {
-			log.Printf("Not going to digest %s (mode: %s)\n", path, mode)
-			return nil
-		}
-
 		filesToDigest <- Task{path, info, []byte{}}
 		return nil
 	})
@@ -66,19 +63,66 @@ func Checkin(host string, port uint, dir string) {
 	wg.Wait()
 }
 
-func manifest(filesToManifest chan Task, wg *sync.WaitGroup) {
+func manifest(host string, port uint, filesToManifest chan Task, label string, wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	connectionString := fmt.Sprintf("%s:%d", host, port)
+	conn, err := net.Dial("tcp", connectionString)
+	if err != nil {
+		log.Fatal("Error dialing: ", err.Error())
+	}
+
+	defer func() {
+		log.Println("Closing the connection")
+		conn.Close()
+	}()
 
 	manifest := make(map[string]string)
 	for {
 		task, more := <-filesToManifest
 		if !more {
 			log.Println("Received all manifest entries")
-			return
+			break
 		}
 
-		manifest[task.file] = fmt.Sprintf("%x", task.hash)
+		log.Printf("Adding %s to manifest\n", task.file)
+		if len(task.hash) > 0 {
+			manifest[task.file] = fmt.Sprintf("%x", task.hash)
+		} else {
+			manifest[task.file] = "nohash"
+		}
 	}
+
+	manifestJSON, err := json.Marshal(manifest)
+	if err != nil {
+		log.Println("Error serializing manifest: ", err.Error())
+	}
+	fmt.Printf("Manifest: %s\n", manifestJSON)
+
+	hash := sha256.Sum256(manifestJSON)
+
+	conn.Write([]byte{server.OP_SET}) // Opcode
+	conn.Write(hash[:])               // hash
+
+	sizeBuf := make([]byte, 8)
+	binary.PutVarint(sizeBuf, int64(len(manifestJSON)))
+	log.Printf("Encoded size (%d): %v\n", len(sizeBuf), sizeBuf)
+	log.Printf("Going to upload %d bytes of file\n", int64(len(manifestJSON)))
+	binary.Write(conn, binary.LittleEndian, int64(len(manifestJSON)))
+
+	conn.Write(manifestJSON)
+
+	// set label
+	conn.Write([]byte{server.OP_SET_LABEL}) // Opcode
+	conn.Write(hash[:])                     // hash
+
+	labelBuf := []byte(label)
+	binary.PutVarint(sizeBuf, int64(len(labelBuf)))
+	log.Printf("Encoded size (%d): %v\n", len(sizeBuf), sizeBuf)
+	log.Printf("Going to upload %d bytes of file\n", int64(len(labelBuf)))
+	binary.Write(conn, binary.LittleEndian, int64(len(labelBuf)))
+
+	conn.Write(labelBuf)
 }
 
 func digest(filesToDigest chan Task, filesToUpload chan Task, filesToManifest chan Task, wg *sync.WaitGroup) {
@@ -97,7 +141,7 @@ func digest(filesToDigest chan Task, filesToUpload chan Task, filesToManifest ch
 		if mode.IsDir() {
 			log.Printf("Not going to digest %s (mode: %s)\n", task.file, mode)
 			filesToManifest <- task
-			return
+			continue
 		}
 
 		f, err := os.Open(task.file)
@@ -116,6 +160,7 @@ func digest(filesToDigest chan Task, filesToUpload chan Task, filesToManifest ch
 
 		task.hash = h.Sum(nil)
 		log.Printf("sha256(%s) = %x\n", task.file, task.hash)
+		filesToManifest <- task
 		filesToUpload <- task
 	}
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ type Server struct {
 	rootDir    string
 	objectsDir string
 	draftsDir  string
+	labelsDir  string
 }
 
 func NewServer(host string, port uint, rootDir string) *Server {
@@ -75,6 +77,12 @@ func (s *Server) createDirs(rootDir string) {
 		os.Mkdir(draftsDir, 0777)
 	}
 	s.draftsDir = draftsDir
+
+	labelsDir := filepath.Join(s.rootDir, "labels")
+	if _, err := os.Stat(labelsDir); os.IsNotExist(err) {
+		os.Mkdir(labelsDir, 0777)
+	}
+	s.labelsDir = labelsDir
 }
 
 func (s *Server) handleRequest(conn net.Conn) {
@@ -111,6 +119,7 @@ func (s *Server) handleRequest(conn net.Conn) {
 			log.Printf("Checking if hash %x exists\n", hash)
 		case OP_SET_LABEL:
 			log.Printf("Setting label\n")
+			s.handleSetLabelCommand(conn, hash)
 		default:
 			log.Printf("Unknown command\n")
 		}
@@ -121,8 +130,7 @@ func (s *Server) handleSetCommand(conn net.Conn, hash []byte) {
 	log.Printf("Setting hash: %x\n", hash)
 
 	//TODO: create temp file which will hold the received data
-	objectsPath := filepath.Join(s.rootDir, "objects")
-	objectDirPath := filepath.Join(objectsPath, fmt.Sprintf("%x/%x", hash[:1], hash[1:2]))
+	objectDirPath := filepath.Join(s.objectsDir, fmt.Sprintf("%x/%x", hash[:1], hash[1:2]))
 	os.MkdirAll(objectDirPath, 0777)
 	objectFilePath := filepath.Join(objectDirPath, fmt.Sprintf("%x", hash[2:]))
 
@@ -145,6 +153,31 @@ func (s *Server) handleSetCommand(conn net.Conn, hash []byte) {
 		written, _ := io.CopyN(f, conn, n)
 		size -= written
 	}
+}
+
+func (s *Server) handleSetLabelCommand(conn net.Conn, hash []byte) {
+	var size int64
+	binary.Read(conn, binary.LittleEndian, &size)
+	log.Printf("Going to read %d bytes of label\n", size)
+
+	buf := make([]byte, size)
+	labelBuffer := bytes.NewBuffer(buf)
+	_, err := io.CopyN(labelBuffer, conn, size)
+	if err != nil {
+		log.Println("Error reading label: ", err.Error())
+	}
+
+	labelString, _ := labelBuffer.ReadString('\n')
+	log.Printf("Reading label: %s (len=%d)\n", labelString, labelBuffer.Len())
+	labelFilePath := filepath.Join(s.labelsDir, labelString)
+	log.Println("Label file path: ", labelFilePath)
+	f, err := os.Create(labelFilePath)
+	if err != nil {
+		log.Println("Error creating label file: ", err.Error())
+		return
+	}
+	f.Write(hash)
+	f.Close()
 }
 
 func (s *Server) handleGetCommand(conn net.Conn, hash []byte) {
