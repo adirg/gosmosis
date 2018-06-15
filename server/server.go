@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	OP_SET = iota
-	OP_GET
-	OP_EXISTS
-	OP_SET_LABEL
+	OpSet = iota
+	OpGet
+	OpExists
+	OpSetLabel
 )
 
 type Server struct {
@@ -110,13 +110,13 @@ func (s *Server) handleRequest(conn net.Conn) {
 		}
 
 		switch opcode[0] {
-		case OP_SET:
+		case OpSet:
 			s.handleSetCommand(conn, hash)
-		case OP_GET:
+		case OpGet:
 			s.handleGetCommand(conn, hash)
-		case OP_EXISTS:
+		case OpExists:
 			log.Printf("Checking if hash %x exists\n", hash)
-		case OP_SET_LABEL:
+		case OpSetLabel:
 			log.Printf("Setting label\n")
 			s.handleSetLabelCommand(conn, hash)
 		default:
