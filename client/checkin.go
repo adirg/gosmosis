@@ -118,8 +118,8 @@ func manifest(host string, port uint, filesToManifest chan Task, label string, w
 
 	labelBuf := []byte(label)
 	binary.PutVarint(sizeBuf, int64(len(labelBuf)))
-	log.Printf("Encoded size (%d): %v\n", len(sizeBuf), sizeBuf)
-	log.Printf("Going to upload %d bytes of file\n", int64(len(labelBuf)))
+	log.Printf("Encoded label size (%d): %v\n", len(sizeBuf), sizeBuf)
+	log.Printf("Going to upload %d bytes of label\n", int64(len(labelBuf)))
 	binary.Write(conn, binary.LittleEndian, int64(len(labelBuf)))
 
 	conn.Write(labelBuf)

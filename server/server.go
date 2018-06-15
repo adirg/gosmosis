@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -139,6 +138,7 @@ func (s *Server) handleSetCommand(conn net.Conn, hash []byte) {
 		log.Println("Error creating ", objectFilePath, err.Error())
 		return
 	}
+	defer f.Close()
 
 	var size int64
 	binary.Read(conn, binary.LittleEndian, &size)
@@ -161,22 +161,20 @@ func (s *Server) handleSetLabelCommand(conn net.Conn, hash []byte) {
 	log.Printf("Going to read %d bytes of label\n", size)
 
 	buf := make([]byte, size)
-	labelBuffer := bytes.NewBuffer(buf)
-	_, err := io.CopyN(labelBuffer, conn, size)
+	_, err := conn.Read(buf)
 	if err != nil {
 		log.Println("Error reading label: ", err.Error())
 	}
 
-	labelString, _ := labelBuffer.ReadString('\n')
-	log.Printf("Reading label: %s (len=%d)\n", labelString, labelBuffer.Len())
-	labelFilePath := filepath.Join(s.labelsDir, labelString)
+	log.Printf("Read label: %s (len=%d)\n", buf[:size], size)
+	labelFilePath := filepath.Join(s.labelsDir, fmt.Sprintf("%s", buf[:size]))
 	log.Println("Label file path: ", labelFilePath)
 	f, err := os.Create(labelFilePath)
 	if err != nil {
 		log.Println("Error creating label file: ", err.Error())
 		return
 	}
-	f.Write(hash)
+	f.Write([]byte(fmt.Sprintf("%x", hash)))
 	f.Close()
 }
 
