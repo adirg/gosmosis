@@ -15,6 +15,8 @@ const (
 	OpGet
 	OpExists
 	OpSetLabel
+	OpGetLabel
+	OpListLabel
 )
 
 type Server struct {
@@ -90,20 +92,11 @@ func (s *Server) handleRequest(conn net.Conn) {
 		conn.Close()
 	}()
 
-	// Make a buffer to hold incoming data (opcode + hash)
-	buf := make([]byte, 1+32)
+	// Make a buffer to hold incoming opcode
+	opcode := make([]byte, 1)
 
 	for {
-		opcode := buf[:1]
 		_, err := conn.Read(opcode)
-		if err != nil {
-			log.Println("Error reading: ", err.Error())
-			return
-		}
-
-		log.Println("Reading header")
-		hash := buf[1:33]
-		_, err = conn.Read(hash)
 		if err != nil {
 			log.Println("Error reading: ", err.Error())
 			return
@@ -111,21 +104,28 @@ func (s *Server) handleRequest(conn net.Conn) {
 
 		switch opcode[0] {
 		case OpSet:
-			s.handleSetCommand(conn, hash)
+			s.handleSetCommand(conn)
 		case OpGet:
-			s.handleGetCommand(conn, hash)
+			s.handleGetCommand(conn)
 		case OpExists:
-			log.Printf("Checking if hash %x exists\n", hash)
+			s.handleExistsCommand(conn)
 		case OpSetLabel:
-			log.Printf("Setting label\n")
-			s.handleSetLabelCommand(conn, hash)
+			s.handleSetLabelCommand(conn)
 		default:
 			log.Printf("Unknown command\n")
 		}
 	}
 }
 
-func (s *Server) handleSetCommand(conn net.Conn, hash []byte) {
+func (s *Server) handleSetCommand(conn net.Conn) {
+	log.Println("Reading hash")
+	hash := make([]byte, 32)
+	_, err := conn.Read(hash)
+	if err != nil {
+		log.Println("Error reading: ", err.Error())
+		return
+	}
+
 	log.Printf("Setting hash: %x\n", hash)
 
 	//TODO: create temp file which will hold the received data
@@ -155,13 +155,21 @@ func (s *Server) handleSetCommand(conn net.Conn, hash []byte) {
 	}
 }
 
-func (s *Server) handleSetLabelCommand(conn net.Conn, hash []byte) {
+func (s *Server) handleSetLabelCommand(conn net.Conn) {
+	log.Println("Reading hash")
+	hash := make([]byte, 32)
+	_, err := conn.Read(hash)
+	if err != nil {
+		log.Println("Error reading: ", err.Error())
+		return
+	}
+
 	var size int64
 	binary.Read(conn, binary.LittleEndian, &size)
 	log.Printf("Going to read %d bytes of label\n", size)
 
 	buf := make([]byte, size)
-	_, err := conn.Read(buf)
+	_, err = conn.Read(buf)
 	if err != nil {
 		log.Println("Error reading label: ", err.Error())
 	}
@@ -178,6 +186,22 @@ func (s *Server) handleSetLabelCommand(conn net.Conn, hash []byte) {
 	f.Close()
 }
 
-func (s *Server) handleGetCommand(conn net.Conn, hash []byte) {
+func (s *Server) handleGetCommand(conn net.Conn) {
+	log.Println("Reading hash")
+	hash := make([]byte, 32)
+	_, err := conn.Read(hash)
+	if err != nil {
+		log.Println("Error reading: ", err.Error())
+		return
+	}
+
+	log.Printf("Getting hash: %x\n", hash)
+}
+
+func (s *Server) handleExistsCommand(conn net.Conn) {
+	log.Println("Exists command not implemented yet!")
+}
+
+func (s *Server) handleGetLabelCommand(conn net.Conn, hash []byte) {
 	log.Printf("Getting hash: %x\n", hash)
 }

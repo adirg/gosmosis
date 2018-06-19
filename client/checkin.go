@@ -101,8 +101,8 @@ func manifest(host string, port uint, filesToManifest chan Task, label string, w
 
 	hash := sha256.Sum256(manifestJSON)
 
-	conn.Write([]byte{server.OP_SET}) // Opcode
-	conn.Write(hash[:])               // hash
+	conn.Write([]byte{server.OpSet}) // Opcode
+	conn.Write(hash[:])              // hash
 
 	sizeBuf := make([]byte, 8)
 	binary.PutVarint(sizeBuf, int64(len(manifestJSON)))
@@ -113,8 +113,8 @@ func manifest(host string, port uint, filesToManifest chan Task, label string, w
 	conn.Write(manifestJSON)
 
 	// set label
-	conn.Write([]byte{server.OP_SET_LABEL}) // Opcode
-	conn.Write(hash[:])                     // hash
+	conn.Write([]byte{server.OpSetLabel}) // Opcode
+	conn.Write(hash[:])                   // hash
 
 	labelBuf := []byte(label)
 	binary.PutVarint(sizeBuf, int64(len(labelBuf)))

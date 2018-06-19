@@ -35,6 +35,21 @@ func handleCheckinCmd(args []string) {
 	client.Checkin(*host, *port, dir, label)
 }
 
+func handleCheckoutCmd(args []string) {
+	checkoutArgs := flag.NewFlagSet("checkout", flag.ExitOnError)
+	host := checkoutArgs.String("host", "127.0.0.1", "connect to ip address")
+	port := checkoutArgs.Uint("port", 3333, "connect to port")
+
+	checkoutArgs.Parse(args)
+	if checkoutArgs.NArg() < 2 {
+		log.Fatal("Missing directory / label")
+	}
+
+	dir := checkoutArgs.Arg(0)
+	label := checkoutArgs.Arg(1)
+	client.Checkout(*host, *port, dir, label)
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		// TODO: Print usage
@@ -47,6 +62,7 @@ func main() {
 	case "checkin":
 		handleCheckinCmd(os.Args[2:])
 	case "checkout":
+		handleCheckoutCmd(os.Args[2:])
 	case "list-labels":
 	case "rm-label":
 	default:
