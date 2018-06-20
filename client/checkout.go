@@ -62,7 +62,7 @@ func getManifest(host string, port uint, filesToDownload chan Task, label string
 	labelBuf := []byte(label)
 	binary.PutVarint(sizeBuf, int64(len(labelBuf)))
 	log.Printf("Encoded label size (%d): %v\n", len(sizeBuf), sizeBuf)
-	log.Printf("Going to upload %d bytes of label\n", int64(len(labelBuf)))
+	log.Printf("Going to download %d bytes of label\n", int64(len(labelBuf)))
 	binary.Write(conn, binary.LittleEndian, int64(len(labelBuf)))
 
 	// get manifest hash

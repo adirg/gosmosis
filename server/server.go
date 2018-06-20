@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -111,6 +113,8 @@ func (s *Server) handleRequest(conn net.Conn) {
 			s.handleExistsCommand(conn)
 		case OpSetLabel:
 			s.handleSetLabelCommand(conn)
+		case OpGetLabel:
+			s.handleGetLabelCommand(conn)
 		default:
 			log.Printf("Unknown command\n")
 		}
@@ -187,21 +191,64 @@ func (s *Server) handleSetLabelCommand(conn net.Conn) {
 }
 
 func (s *Server) handleGetCommand(conn net.Conn) {
-	log.Println("Reading hash")
+	// read the hash from network
 	hash := make([]byte, 32)
-	_, err := conn.Read(hash)
+	_, err := io.ReadFull(conn, hash)
 	if err != nil {
-		log.Println("Error reading: ", err.Error())
-		return
+		log.Fatal("Error reading: ", err.Error())
 	}
 
-	log.Printf("Getting hash: %x\n", hash)
+	// read the hash file
+	objectFilePath := filepath.Join(s.objectsDir, fmt.Sprintf("%x/%x", hash[:1], hash[1:2]))
+	info, err := os.Stat(objectFilePath)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	// send the hash file size to the client
+	size := info.Size()
+	binary.Write(conn, binary.LittleEndian, size)
+
+	// send the hash file content to the client
+	f, err := os.Open(objectFilePath)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	buf := make([]byte, 1024)
+	io.CopyBuffer(conn, f, buf)
 }
 
 func (s *Server) handleExistsCommand(conn net.Conn) {
 	log.Println("Exists command not implemented yet!")
 }
 
-func (s *Server) handleGetLabelCommand(conn net.Conn, hash []byte) {
-	log.Printf("Getting hash: %x\n", hash)
+func (s *Server) handleGetLabelCommand(conn net.Conn) {
+	// read label size from network
+	var labelSize int64
+	binary.Read(conn, binary.LittleEndian, &labelSize)
+
+	// read label from network
+	labelBuf := make([]byte, labelSize)
+	_, err := io.ReadFull(conn, labelBuf)
+	if err != nil {
+		log.Println("Failed reading label from network")
+		return
+	}
+
+	// read hash from label file
+	labelFilePath := filepath.Join(s.labelsDir, string(labelBuf))
+	hash, err := ioutil.ReadFile(labelFilePath)
+	if err != nil {
+		log.Println("Failed reading hash from label file")
+		return
+	}
+
+	hashBuf, err := hex.DecodeString(string(hash))
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	// send hash back to the client
+	conn.Write(hashBuf)
 }
