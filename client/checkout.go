@@ -58,12 +58,12 @@ func getManifest(host string, port uint, filesToDownload chan Task, label string
 
 	conn.Write([]byte{server.OpGetLabel})
 
-	sizeBuf := make([]byte, 8)
 	labelBuf := []byte(label)
-	binary.PutVarint(sizeBuf, int64(len(labelBuf)))
-	log.Printf("Encoded label size (%d): %v\n", len(sizeBuf), sizeBuf)
 	log.Printf("Going to download %d bytes of label\n", int64(len(labelBuf)))
 	binary.Write(conn, binary.LittleEndian, int64(len(labelBuf)))
+
+	// send label to the server
+	conn.Write(labelBuf)
 
 	// get manifest hash
 	hash := make([]byte, 32)
@@ -72,6 +72,8 @@ func getManifest(host string, port uint, filesToDownload chan Task, label string
 		log.Println("Failed to read hash of label: ", label)
 		return
 	}
+
+	log.Printf("label hash: %x\n", hash)
 
 	// get manifest content
 	manifestFile, err := ioutil.TempFile("", "manifest")

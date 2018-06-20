@@ -191,6 +191,8 @@ func (s *Server) handleSetLabelCommand(conn net.Conn) {
 }
 
 func (s *Server) handleGetCommand(conn net.Conn) {
+	log.Println("Handling GET command")
+
 	// read the hash from network
 	hash := make([]byte, 32)
 	_, err := io.ReadFull(conn, hash)
@@ -198,8 +200,12 @@ func (s *Server) handleGetCommand(conn net.Conn) {
 		log.Fatal("Error reading: ", err.Error())
 	}
 
+	log.Printf("Got hash: %x\n", hash)
+
 	// read the hash file
-	objectFilePath := filepath.Join(s.objectsDir, fmt.Sprintf("%x/%x", hash[:1], hash[1:2]))
+	objectDirPath := filepath.Join(s.objectsDir, fmt.Sprintf("%x/%x", hash[:1], hash[1:2]))
+	objectFilePath := filepath.Join(objectDirPath, fmt.Sprintf("%x", hash[2:]))
+	log.Println("manifest file path: ", objectFilePath)
 	info, err := os.Stat(objectFilePath)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -207,6 +213,7 @@ func (s *Server) handleGetCommand(conn net.Conn) {
 
 	// send the hash file size to the client
 	size := info.Size()
+	log.Println("Size of manifest file: ", size)
 	binary.Write(conn, binary.LittleEndian, size)
 
 	// send the hash file content to the client
@@ -228,11 +235,13 @@ func (s *Server) handleGetLabelCommand(conn net.Conn) {
 	var labelSize int64
 	binary.Read(conn, binary.LittleEndian, &labelSize)
 
+	log.Println("Label size in bytes: ", labelSize)
+
 	// read label from network
 	labelBuf := make([]byte, labelSize)
 	_, err := io.ReadFull(conn, labelBuf)
 	if err != nil {
-		log.Println("Failed reading label from network")
+		log.Println("Failed reading label from network: ", err.Error())
 		return
 	}
 
