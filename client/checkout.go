@@ -1,10 +1,10 @@
 package client
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -75,15 +75,6 @@ func getManifest(host string, port uint, filesToDownload chan Task, label string
 
 	log.Printf("label hash: %x\n", hash)
 
-	// get manifest content
-	manifestFile, err := ioutil.TempFile("", "manifest")
-	if err != nil {
-		log.Println("Failed to open temporary manifest file")
-		return
-	}
-
-	defer manifestFile.Close()
-
 	conn.Write([]byte{server.OpGet})
 	conn.Write(hash)
 
@@ -91,13 +82,17 @@ func getManifest(host string, port uint, filesToDownload chan Task, label string
 	binary.Read(conn, binary.LittleEndian, &size)
 	log.Println("Size of manifest file: ", size)
 
+	var b bytes.Buffer
+
 	r := io.LimitReader(conn, size)
 	buf := make([]byte, 1024)
-	_, err = io.CopyBuffer(manifestFile, r, buf)
+	_, err = io.CopyBuffer(&b, r, buf)
 	if err != nil {
 		log.Println("Failed to read manifest content")
 		return
 	}
+
+	log.Println("manifest: ", b.String())
 }
 
 func download(wg *sync.WaitGroup) {
