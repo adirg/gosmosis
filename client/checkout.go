@@ -3,6 +3,8 @@ package client
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -36,7 +38,7 @@ func Checkout(host string, port uint, dir string, label string) {
 	go getManifest(host, port, filesToDownload, label, &wg)
 
 	wg.Add(1)
-	go download(&wg)
+	go download(filesToDownload, &wg)
 
 	wg.Wait()
 }
@@ -92,50 +94,30 @@ func getManifest(host string, port uint, filesToDownload chan Task, label string
 		return
 	}
 
+	var manifestObj map[string]string
 	log.Println("manifest: ", b.String())
+	json.Unmarshal(b.Bytes(), &manifestObj)
+
+	for filename, hash := range manifestObj {
+		log.Println("filename: ", filename)
+		log.Println("hash:   : ", hash)
+		if hash != "nohash" {
+			hashBuf, _ := hex.DecodeString(string(hash))
+			filesToDownload <- Task{filename, nil, hashBuf}
+		}
+	}
 }
 
-func download(wg *sync.WaitGroup) {
+func download(filesToDownload chan Task, wg *sync.WaitGroup) {
 	defer wg.Done()
-	fmt.Println("Not implmented yet")
-	//connectionString := fmt.Sprintf("%s:%d", host, port)
-	//conn, err := net.Dial("tcp", connectionString)
-	//if err != nil {
-	//log.Fatal("Error dialing: ", err.Error())
-	//}
 
-	//defer func() {
-	//log.Println("Closing the connection")
-	//conn.Close()
-	//}()
+	for {
+		task, more := <-filesToDownload
+		if !more {
+			log.Println("Downloaded all manifest entries")
+			break
+		}
 
-	//for {
-	//task, more := <-filesToDownload
-	//if !more {
-	//log.Println("Received all files to download")
-	//return
-	//}
-
-	//log.Printf("downloading %s (%x) \n", task.file, task.hash)
-	//conn.Write([]byte{server.OpGet}) // Opcode
-	//conn.Write(task.hash)            // hash
-
-	//info, err := os.Stat(task.file)
-	//size := info.Size()
-
-	//sizeBuf := make([]byte, 8)
-	//binary.PutVarint(sizeBuf, size)
-	//log.Printf("Encoded size (%d): %v\n", len(sizeBuf), sizeBuf)
-
-	//log.Printf("Going to upload %d bytes of file\n", size)
-	//binary.Write(conn, binary.LittleEndian, size)
-
-	//buf := make([]byte, 1024)
-	//f, err := os.Open(task.file)
-	//if err != nil {
-	//log.Println("Error opening ", task.file)
-	//}
-
-	//io.CopyBuffer(conn, f, buf)
-	//}
+		log.Printf("Downloading %s to manifest\n", task.file)
+	}
 }
