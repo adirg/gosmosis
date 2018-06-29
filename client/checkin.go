@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/adirg/gosmosis/server"
 )
@@ -24,19 +23,12 @@ type Task struct {
 func (c *Client) Checkin(workDir string, label string) {
 	c.setWorkDir(workDir)
 
-	var wg sync.WaitGroup
 	filesToDigest := make(chan Task)
 	filesToUpload := make(chan Task)
 	filesToManifest := make(chan Task)
-
-	wg.Add(1)
-	go c.manifest(filesToManifest, label, &wg)
-
-	wg.Add(1)
-	go c.digest(filesToDigest, filesToUpload, filesToManifest, &wg)
-
-	wg.Add(1)
-	go c.upload(filesToUpload, &wg)
+	go c.manifest(filesToManifest, label)
+	go c.digest(filesToDigest, filesToUpload, filesToManifest)
+	go c.upload(filesToUpload)
 
 	err := filepath.Walk(c.workDir, func(path string, info os.FileInfo, err error) error {
 		filesToDigest <- Task{path, info, []byte{}}
@@ -48,11 +40,12 @@ func (c *Client) Checkin(workDir string, label string) {
 	}
 
 	close(filesToDigest)
-	wg.Wait()
+	c.wg.Wait()
 }
 
-func (c *Client) manifest(filesToManifest chan Task, label string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (c *Client) manifest(filesToManifest chan Task, label string) {
+	c.wg.Add(1)
+	defer c.wg.Done()
 
 	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
 	conn, err := net.Dial("tcp", connectionString)
@@ -119,8 +112,10 @@ func (c *Client) manifest(filesToManifest chan Task, label string, wg *sync.Wait
 	conn.Write(labelBuf)
 }
 
-func (c *Client) digest(filesToDigest chan Task, filesToUpload chan Task, filesToManifest chan Task, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (c *Client) digest(filesToDigest chan Task, filesToUpload chan Task,
+	filesToManifest chan Task) {
+	c.wg.Add(1)
+	defer c.wg.Done()
 
 	for {
 		task, more := <-filesToDigest
@@ -159,8 +154,9 @@ func (c *Client) digest(filesToDigest chan Task, filesToUpload chan Task, filesT
 	}
 }
 
-func (c *Client) upload(filesToUpload chan Task, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (c *Client) upload(filesToUpload chan Task) {
+	c.wg.Add(1)
+	defer c.wg.Done()
 
 	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
 	conn, err := net.Dial("tcp", connectionString)

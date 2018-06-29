@@ -4,13 +4,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 type Client struct {
-	host string
-	port uint
-
+	host    string
+	port    uint
 	workDir string
+	wg      sync.WaitGroup
 }
 
 func NewClient(host string, port uint) *Client {

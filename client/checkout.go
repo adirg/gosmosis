@@ -9,42 +9,23 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
-	"path/filepath"
-	"sync"
 
 	"github.com/adirg/gosmosis/server"
 )
 
 func (c *Client) Checkout(dir string, label string) {
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		log.Fatal("Error determining absolute path of directory: ", err.Error())
-	}
+	c.setWorkDir(dir)
 
-	mode, err := os.Stat(absDir)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	if !mode.IsDir() {
-		log.Fatalf("%s is not a directory", absDir)
-	}
-
-	var wg sync.WaitGroup
 	filesToDownload := make(chan Task)
+	go c.getManifest(filesToDownload, label)
+	go c.download(filesToDownload, dir)
 
-	wg.Add(1)
-	go c.getManifest(filesToDownload, label, &wg)
-
-	wg.Add(1)
-	go c.download(filesToDownload, dir, &wg)
-
-	wg.Wait()
+	c.wg.Wait()
 }
 
-func (c *Client) getManifest(filesToDownload chan Task, label string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (c *Client) getManifest(filesToDownload chan Task, label string) {
+	c.wg.Add(1)
+	defer c.wg.Done()
 	defer close(filesToDownload)
 
 	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
@@ -108,8 +89,9 @@ func (c *Client) getManifest(filesToDownload chan Task, label string, wg *sync.W
 	}
 }
 
-func (c *Client) download(filesToDownload chan Task, dir string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (c *Client) download(filesToDownload chan Task, dir string) {
+	c.wg.Add(1)
+	defer c.wg.Done()
 
 	for {
 		task, more := <-filesToDownload
