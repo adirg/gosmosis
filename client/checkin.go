@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"os"
 	"path/filepath"
 
@@ -26,8 +25,14 @@ func (c *Client) Checkin(workDir string, label string) {
 	filesToDigest := make(chan Task)
 	filesToUpload := make(chan Task)
 	filesToManifest := make(chan Task)
+
+	c.wg.Add(1)
 	go c.manifest(filesToManifest, label)
+
+	c.wg.Add(1)
 	go c.digest(filesToDigest, filesToUpload, filesToManifest)
+
+	c.wg.Add(1)
 	go c.upload(filesToUpload)
 
 	err := filepath.Walk(c.workDir, func(path string, info os.FileInfo, err error) error {
@@ -44,15 +49,9 @@ func (c *Client) Checkin(workDir string, label string) {
 }
 
 func (c *Client) manifest(filesToManifest chan Task, label string) {
-	c.wg.Add(1)
 	defer c.wg.Done()
 
-	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
-	conn, err := net.Dial("tcp", connectionString)
-	if err != nil {
-		log.Fatal("Error dialing: ", err.Error())
-	}
-
+	conn := c.connect()
 	defer func() {
 		log.Println("Closing the connection")
 		conn.Close()
@@ -114,7 +113,6 @@ func (c *Client) manifest(filesToManifest chan Task, label string) {
 
 func (c *Client) digest(filesToDigest chan Task, filesToUpload chan Task,
 	filesToManifest chan Task) {
-	c.wg.Add(1)
 	defer c.wg.Done()
 
 	for {
@@ -155,15 +153,9 @@ func (c *Client) digest(filesToDigest chan Task, filesToUpload chan Task,
 }
 
 func (c *Client) upload(filesToUpload chan Task) {
-	c.wg.Add(1)
 	defer c.wg.Done()
 
-	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
-	conn, err := net.Dial("tcp", connectionString)
-	if err != nil {
-		log.Fatal("Error dialing: ", err.Error())
-	}
-
+	conn := c.connect()
 	defer func() {
 		log.Println("Closing the connection")
 		conn.Close()

@@ -5,10 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
-	"net"
 
 	"github.com/adirg/gosmosis/server"
 )
@@ -17,23 +15,21 @@ func (c *Client) Checkout(dir string, label string) {
 	c.setWorkDir(dir)
 
 	filesToDownload := make(chan Task)
+
+	c.wg.Add(1)
 	go c.getManifest(filesToDownload, label)
+
+	c.wg.Add(1)
 	go c.download(filesToDownload, dir)
 
 	c.wg.Wait()
 }
 
 func (c *Client) getManifest(filesToDownload chan Task, label string) {
-	c.wg.Add(1)
 	defer c.wg.Done()
 	defer close(filesToDownload)
 
-	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
-	conn, err := net.Dial("tcp", connectionString)
-	if err != nil {
-		log.Fatal("Error dialing: ", err.Error())
-	}
-
+	conn := c.connect()
 	defer func() {
 		log.Println("Closing the connection")
 		conn.Close()
@@ -50,7 +46,7 @@ func (c *Client) getManifest(filesToDownload chan Task, label string) {
 
 	// get manifest hash
 	hash := make([]byte, 32)
-	_, err = io.ReadFull(conn, hash)
+	_, err := io.ReadFull(conn, hash)
 	if err != nil {
 		log.Println("Failed to read hash of label: ", label)
 		return
@@ -90,7 +86,6 @@ func (c *Client) getManifest(filesToDownload chan Task, label string) {
 }
 
 func (c *Client) download(filesToDownload chan Task, dir string) {
-	c.wg.Add(1)
 	defer c.wg.Done()
 
 	for {

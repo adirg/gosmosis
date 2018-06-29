@@ -1,7 +1,9 @@
 package client
 
 import (
+	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -39,4 +41,14 @@ func (c *Client) setWorkDir(workDir string) {
 	}
 
 	c.workDir = absWorkDir
+}
+
+func (c *Client) connect() net.Conn {
+	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
+	conn, err := net.Dial("tcp", connectionString)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	return conn
 }
