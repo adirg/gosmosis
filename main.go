@@ -32,7 +32,9 @@ func handleCheckinCmd(args []string) {
 
 	dir := checkinArgs.Arg(0)
 	label := checkinArgs.Arg(1)
-	client.Checkin(*host, *port, dir, label)
+
+	c := client.NewClient(*host, *port)
+	c.Checkin(dir, label)
 }
 
 func handleCheckoutCmd(args []string) {
@@ -47,7 +49,9 @@ func handleCheckoutCmd(args []string) {
 
 	dir := checkoutArgs.Arg(0)
 	label := checkoutArgs.Arg(1)
-	client.Checkout(*host, *port, dir, label)
+
+	c := client.NewClient(*host, *port)
+	c.Checkout(dir, label)
 }
 
 func main() {

@@ -21,7 +21,7 @@ type Task struct {
 	hash []byte
 }
 
-func Checkin(host string, port uint, dir string, label string) {
+func (c *Client) Checkin(dir string, label string) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		log.Fatal("Error determining absolute path of directory: ", err.Error())
@@ -42,13 +42,13 @@ func Checkin(host string, port uint, dir string, label string) {
 	filesToManifest := make(chan Task)
 
 	wg.Add(1)
-	go manifest(host, port, filesToManifest, label, &wg)
+	go c.manifest(filesToManifest, label, &wg)
 
 	wg.Add(1)
-	go digest(filesToDigest, filesToUpload, filesToManifest, &wg)
+	go c.digest(filesToDigest, filesToUpload, filesToManifest, &wg)
 
 	wg.Add(1)
-	go upload(host, port, filesToUpload, &wg)
+	go c.upload(filesToUpload, &wg)
 
 	err = filepath.Walk(absDir, func(path string, info os.FileInfo, err error) error {
 		filesToDigest <- Task{path, info, []byte{}}
@@ -63,10 +63,10 @@ func Checkin(host string, port uint, dir string, label string) {
 	wg.Wait()
 }
 
-func manifest(host string, port uint, filesToManifest chan Task, label string, wg *sync.WaitGroup) {
+func (c *Client) manifest(filesToManifest chan Task, label string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	connectionString := fmt.Sprintf("%s:%d", host, port)
+	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
 	conn, err := net.Dial("tcp", connectionString)
 	if err != nil {
 		log.Fatal("Error dialing: ", err.Error())
@@ -125,7 +125,7 @@ func manifest(host string, port uint, filesToManifest chan Task, label string, w
 	conn.Write(labelBuf)
 }
 
-func digest(filesToDigest chan Task, filesToUpload chan Task, filesToManifest chan Task, wg *sync.WaitGroup) {
+func (c *Client) digest(filesToDigest chan Task, filesToUpload chan Task, filesToManifest chan Task, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -165,10 +165,10 @@ func digest(filesToDigest chan Task, filesToUpload chan Task, filesToManifest ch
 	}
 }
 
-func upload(host string, port uint, filesToUpload chan Task, wg *sync.WaitGroup) {
+func (c *Client) upload(filesToUpload chan Task, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	connectionString := fmt.Sprintf("%s:%d", host, port)
+	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
 	conn, err := net.Dial("tcp", connectionString)
 	if err != nil {
 		log.Fatal("Error dialing: ", err.Error())

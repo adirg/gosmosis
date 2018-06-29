@@ -16,7 +16,7 @@ import (
 	"github.com/adirg/gosmosis/server"
 )
 
-func Checkout(host string, port uint, dir string, label string) {
+func (c *Client) Checkout(dir string, label string) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		log.Fatal("Error determining absolute path of directory: ", err.Error())
@@ -35,19 +35,19 @@ func Checkout(host string, port uint, dir string, label string) {
 	filesToDownload := make(chan Task)
 
 	wg.Add(1)
-	go getManifest(host, port, filesToDownload, label, &wg)
+	go c.getManifest(filesToDownload, label, &wg)
 
 	wg.Add(1)
-	go download(filesToDownload, &wg)
+	go c.download(filesToDownload, &wg)
 
 	wg.Wait()
 }
 
-func getManifest(host string, port uint, filesToDownload chan Task, label string, wg *sync.WaitGroup) {
+func (c *Client) getManifest(filesToDownload chan Task, label string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer close(filesToDownload)
 
-	connectionString := fmt.Sprintf("%s:%d", host, port)
+	connectionString := fmt.Sprintf("%s:%d", c.host, c.port)
 	conn, err := net.Dial("tcp", connectionString)
 	if err != nil {
 		log.Fatal("Error dialing: ", err.Error())
@@ -108,7 +108,7 @@ func getManifest(host string, port uint, filesToDownload chan Task, label string
 	}
 }
 
-func download(filesToDownload chan Task, wg *sync.WaitGroup) {
+func (c *Client) download(filesToDownload chan Task, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
