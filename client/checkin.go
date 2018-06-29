@@ -44,7 +44,7 @@ func (c *Client) Checkin(workDir string, label string) {
 	})
 
 	if err != nil {
-		log.Fatal("Error visiting ", workDir)
+		log.Fatal("Error visiting ", c.workDir)
 	}
 
 	close(filesToDigest)
@@ -73,11 +73,17 @@ func (c *Client) manifest(filesToManifest chan Task, label string, wg *sync.Wait
 			break
 		}
 
-		log.Printf("Adding %s to manifest\n", task.file)
+		rel, err := filepath.Rel(c.workDir, task.file)
+		if err != nil {
+			log.Println("Failed to get relative path of ", task.file)
+			continue
+		}
+
+		log.Printf("Adding %s to manifest\n", rel)
 		if len(task.hash) > 0 {
-			manifest[task.file] = fmt.Sprintf("%x", task.hash)
+			manifest[rel] = fmt.Sprintf("%x", task.hash)
 		} else {
-			manifest[task.file] = "nohash"
+			manifest[rel] = "nohash"
 		}
 	}
 
