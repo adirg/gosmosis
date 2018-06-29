@@ -38,7 +38,7 @@ func (c *Client) Checkout(dir string, label string) {
 	go c.getManifest(filesToDownload, label, &wg)
 
 	wg.Add(1)
-	go c.download(filesToDownload, &wg)
+	go c.download(filesToDownload, dir, &wg)
 
 	wg.Wait()
 }
@@ -108,7 +108,7 @@ func (c *Client) getManifest(filesToDownload chan Task, label string, wg *sync.W
 	}
 }
 
-func (c *Client) download(filesToDownload chan Task, wg *sync.WaitGroup) {
+func (c *Client) download(filesToDownload chan Task, dir string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {

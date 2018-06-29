@@ -67,8 +67,8 @@ func main() {
 		handleCheckinCmd(os.Args[2:])
 	case "checkout":
 		handleCheckoutCmd(os.Args[2:])
-	case "list-labels":
-	case "rm-label":
+	case "list":
+	case "rm":
 	default:
 		// TODO: Print usage
 		log.Fatal("Invalid command: ", os.Args[1])

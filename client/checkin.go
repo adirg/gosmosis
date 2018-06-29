@@ -21,20 +21,8 @@ type Task struct {
 	hash []byte
 }
 
-func (c *Client) Checkin(dir string, label string) {
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		log.Fatal("Error determining absolute path of directory: ", err.Error())
-	}
-
-	mode, err := os.Stat(absDir)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	if !mode.IsDir() {
-		log.Fatalf("%s is not a directory", absDir)
-	}
+func (c *Client) Checkin(workDir string, label string) {
+	c.setWorkDir(workDir)
 
 	var wg sync.WaitGroup
 	filesToDigest := make(chan Task)
@@ -50,13 +38,13 @@ func (c *Client) Checkin(dir string, label string) {
 	wg.Add(1)
 	go c.upload(filesToUpload, &wg)
 
-	err = filepath.Walk(absDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(c.workDir, func(path string, info os.FileInfo, err error) error {
 		filesToDigest <- Task{path, info, []byte{}}
 		return nil
 	})
 
 	if err != nil {
-		log.Fatal("Error visiting ", absDir)
+		log.Fatal("Error visiting ", workDir)
 	}
 
 	close(filesToDigest)
