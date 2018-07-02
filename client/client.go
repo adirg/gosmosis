@@ -1,12 +1,16 @@
 package client
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/adirg/gosmosis/server"
 )
 
 type Client struct {
@@ -51,4 +55,28 @@ func (c *Client) connect() net.Conn {
 	}
 
 	return conn
+}
+
+func set(conn net.Conn, r io.Reader, size int64, hash []byte) {
+	conn.Write([]byte{server.OpSet}) // Opcode
+	conn.Write(hash)                 // hash
+
+	sizeBuf := make([]byte, 8)
+	binary.PutVarint(sizeBuf, size)
+	binary.Write(conn, binary.LittleEndian, size)
+
+	buf := make([]byte, 1024)
+	io.CopyBuffer(conn, r, buf)
+}
+
+func setLabel(conn net.Conn, label string, hash []byte) {
+	conn.Write([]byte{server.OpSetLabel}) // Opcode
+	conn.Write(hash[:])                   // hash
+
+	labelBuf := []byte(label)
+	size := int64(len(labelBuf))
+	sizeBuf := make([]byte, 8)
+	binary.PutVarint(sizeBuf, size)
+	binary.Write(conn, binary.LittleEndian, size)
+	conn.Write(labelBuf)
 }

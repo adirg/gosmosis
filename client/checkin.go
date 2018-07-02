@@ -1,16 +1,14 @@
 package client
 
 import (
+	"bytes"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
-
-	"github.com/adirg/gosmosis/server"
 )
 
 type Task struct {
@@ -86,29 +84,10 @@ func (c *Client) manifest(filesToManifest chan Task, label string) {
 	fmt.Printf("Manifest: %s\n", manifestJSON)
 
 	hash := sha256.Sum256(manifestJSON)
-
-	conn.Write([]byte{server.OpSet}) // Opcode
-	conn.Write(hash[:])              // hash
-
-	sizeBuf := make([]byte, 8)
-	binary.PutVarint(sizeBuf, int64(len(manifestJSON)))
-	log.Printf("Encoded size (%d): %v\n", len(sizeBuf), sizeBuf)
-	log.Printf("Going to upload %d bytes of file\n", int64(len(manifestJSON)))
-	binary.Write(conn, binary.LittleEndian, int64(len(manifestJSON)))
-
-	conn.Write(manifestJSON)
-
-	// set label
-	conn.Write([]byte{server.OpSetLabel}) // Opcode
-	conn.Write(hash[:])                   // hash
-
-	labelBuf := []byte(label)
-	binary.PutVarint(sizeBuf, int64(len(labelBuf)))
-	log.Printf("Encoded label size (%d): %v\n", len(sizeBuf), sizeBuf)
-	log.Printf("Going to upload %d bytes of label\n", int64(len(labelBuf)))
-	binary.Write(conn, binary.LittleEndian, int64(len(labelBuf)))
-
-	conn.Write(labelBuf)
+	size := int64(len(manifestJSON))
+	r := bytes.NewReader(manifestJSON)
+	set(conn, r, size, hash[:])
+	setLabel(conn, label, hash[:])
 }
 
 func (c *Client) digest(filesToDigest chan Task, filesToUpload chan Task,
@@ -168,26 +147,14 @@ func (c *Client) upload(filesToUpload chan Task) {
 			return
 		}
 
-		log.Printf("Uploading %s (%x) \n", task.file, task.hash)
-		conn.Write([]byte{0}) // Opcode
-		conn.Write(task.hash) // hash
-
 		info, err := os.Stat(task.file)
 		size := info.Size()
 
-		sizeBuf := make([]byte, 8)
-		binary.PutVarint(sizeBuf, size)
-		log.Printf("Encoded size (%d): %v\n", len(sizeBuf), sizeBuf)
-
-		log.Printf("Going to upload %d bytes of file\n", size)
-		binary.Write(conn, binary.LittleEndian, size)
-
-		buf := make([]byte, 1024)
 		f, err := os.Open(task.file)
 		if err != nil {
-			log.Println("Error opening ", task.file)
+			log.Println(err.Error())
 		}
 
-		io.CopyBuffer(conn, f, buf)
+		set(conn, f, size, task.hash)
 	}
 }
