@@ -58,7 +58,7 @@ func (c *Client) connect() net.Conn {
 }
 
 func set(conn net.Conn, r io.Reader, size int64, hash []byte) {
-	conn.Write([]byte{server.OpSet}) // Opcode
+	conn.Write([]byte{server.OpSet}) // opcode
 	conn.Write(hash)                 // hash
 
 	sizeBuf := make([]byte, 8)
@@ -69,8 +69,25 @@ func set(conn net.Conn, r io.Reader, size int64, hash []byte) {
 	io.CopyBuffer(conn, r, buf)
 }
 
+func get(conn net.Conn, w io.Writer, hash []byte) {
+	conn.Write([]byte{server.OpGet}) // opcode
+	conn.Write(hash)
+
+	var size int64
+	binary.Read(conn, binary.LittleEndian, &size)
+	log.Println("Size of manifest file: ", size)
+
+	r := io.LimitReader(conn, size)
+	buf := make([]byte, 1024)
+	_, err := io.CopyBuffer(w, r, buf)
+	if err != nil {
+		log.Println("Failed to read manifest content")
+	}
+
+}
+
 func setLabel(conn net.Conn, label string, hash []byte) {
-	conn.Write([]byte{server.OpSetLabel}) // Opcode
+	conn.Write([]byte{server.OpSetLabel}) // opcode
 	conn.Write(hash[:])                   // hash
 
 	labelBuf := []byte(label)
@@ -79,4 +96,24 @@ func setLabel(conn net.Conn, label string, hash []byte) {
 	binary.PutVarint(sizeBuf, size)
 	binary.Write(conn, binary.LittleEndian, size)
 	conn.Write(labelBuf)
+}
+
+func getLabel(conn net.Conn, label string) []byte {
+	conn.Write([]byte{server.OpGetLabel}) // opcode
+
+	// send label
+	labelBuf := []byte(label)
+	size := int64(len(labelBuf))
+	binary.Write(conn, binary.LittleEndian, size)
+	conn.Write(labelBuf)
+
+	// get manifest hash
+	hash := make([]byte, 32)
+	_, err := io.ReadFull(conn, hash)
+	if err != nil {
+		log.Println("Failed to read hash of label: ", label)
+		return nil
+	}
+
+	return hash
 }
