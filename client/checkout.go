@@ -5,6 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"os"
+	"path"
+	"path/filepath"
 )
 
 func (c *Client) Checkout(dir string, label string) {
@@ -53,6 +56,12 @@ func (c *Client) getManifest(filesToDownload chan Task, label string) {
 func (c *Client) download(filesToDownload chan Task, dir string) {
 	defer c.wg.Done()
 
+	conn := c.connect()
+	defer func() {
+		log.Println("Closing the connection")
+		conn.Close()
+	}()
+
 	for {
 		task, more := <-filesToDownload
 		if !more {
@@ -61,5 +70,15 @@ func (c *Client) download(filesToDownload chan Task, dir string) {
 		}
 
 		log.Printf("Downloading %s to manifest\n", task.file)
+		absFile := path.Join(c.workDir, task.file)
+		absDir := filepath.Dir(absFile)
+		os.MkdirAll(absDir, 0777)
+		f, err := os.OpenFile(absFile, os.O_WRONLY|os.O_CREATE, 0777)
+		if err != nil {
+			log.Println(err.Error())
+		}
+
+		get(conn, f, task.hash)
+		f.Close()
 	}
 }
